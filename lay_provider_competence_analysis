@@ -1,0 +1,744 @@
+---
+title: "lay_provider_competence_analysis"
+output: html_document
+date: "2026-03-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE
+  )
+```
+
+```{r data-import}
+library(readr)
+
+# Read in data using relative paths
+equip <- read_csv ("equip.csv")
+baseline <- read_csv("intervention_baseline.csv")
+
+# Preview data
+head(equip)
+head(baseline)
+```
+
+``` {r load packages, include = FALSE}
+# Load packages
+library(dplyr)
+library(stringr)
+```
+
+
+```{r, rename_and_merge, echo=TRUE}
+
+# Rename columns
+colnames(equip)[colnames(equip) == "Participant ID...3"] <- "pt_id"
+colnames(baseline)[colnames(baseline) == "calculated pt_id"] <- "pt_id"
+names(baseline)[names(baseline) == "Participant Type"] <- "pt_type"
+
+# Merge datasets based on pt_id
+merged <- merge(equip, baseline, by = 'pt_id', all = FALSE) 
+
+# Remove adherence counsellors 
+merged <- merged %>% 
+  filter(
+    is.na(`Please, Specify the cadre`) |                     # keep NAs
+    str_to_lower(`Please, Specify the cadre`) != "adherence counsellor"  # remove only adherence counsellors
+  )
+
+# Preview filtered dataset
+head(merged)
+```
+
+```{r, clean variables, echo=TRUE}
+
+# Summarize missing values by column 
+col_missing <- colSums(is.na(merged))
+print(col_missing)
+
+# Remove redundant variables and not relevant to analysis 
+merged_clean <- merged %>%
+  select(
+    # 1. Remove redundant age variable
+    -"What is your age?",
+
+    # 2. Remove job and department variables (redundant with cadre) 
+    -38:-60,
+
+    # 3. Remove inner culture/team climate variables 
+    -70:-90, 
+
+    # 4. Remove OCB (Organizational Citizenship Behavior) variables 
+    -142:-151,
+
+    # 5. Remove intention variables 
+    -152:-155,
+
+    # 6. Remove implementation climate variables 
+    -156:-162,
+
+    # 7. Remove intervention characteristic variables 
+    -163:-169,
+
+    # 8. Remove sustainability variables 
+    -183:-232,
+
+    # 9. Remove self efficacy variables 
+    -254:-275,
+
+    # 10. Remove adverse event variables 
+    -276:-302
+  )
+
+# Preview final merged clean dataset
+head(merged_clean)
+
+```
+
+```{r rename_all_variables, echo=TRUE}
+
+# Full rename map: new_name = old_name
+rename_map <- c(
+  # Admin info
+  event_equip = "Event Name.x",
+  collect_time_equip = "Data collection time.x",
+  date_equip = "Date rated",
+  pt_type_equip = "Participant type.x",
+  facility_id_equip = "Facility ID.x",
+  collector_initials_equip = "Data collector initials.x",
+  
+  # EQUIP items
+  equip_1 = "Item 1",
+  equip_2 = "Item 2",
+  equip_4 = "Item 4",
+  equip_5 = "Item 5",
+  equip_6 = "Item 6",
+  equip_9 = "Item 9",
+  equip_10 = "Item 10",
+  equip_11 = "Item 11",
+  equip_12 = "Item 12",
+  equip_13 = "Item 13",
+  equip_14 = "Item 14",
+  equip_complete = "Complete?...25",
+  
+  # Demographics
+  cadre = "Cadre",
+  event_baseline = "Event Name.y",
+  collector_initial_baseline = "Data collector initials.y",
+  collect_time_baseline = "Data collection time.y",
+  pt_type_baseline = "Participant type.y",
+  facility_id_baseline = "ID.y",
+  consent_ID = "Consent Record ID",
+  pt_id_instr = "Click this if you need to see the participant id assignment procedure.",
+  admin_info_complete = "Complete?...11",
+  dob_uk = "Do you know your date of birth?",
+  dob = "What is your date of birth?",
+  cal_age = "calculated age based on DOB",
+  sex = "Sex",
+  education = "What is the highest degree or level of education you have completed?    If currently enrolled, choose the highest degree received.",
+  monthsjob = "How many months have you been performing in your current job title? (Include months of working even in other facilities).",
+  monthswork = "How long have you been working in this facility?  (months)",
+  terms = "What are the terms of your engagement in this facility?",
+  care = "Have you been offering care to perinatal women?",
+  monthscare = "How long have you been offering care to perinatal women in this facility?  (months)",
+  hrscare = "How many hours in a week do you take care of perinatal women in this facility?",
+  wlwh = "Are you currently offering care to perinatal women who are living with HIV in this facility?",
+  demographic_complete = "Complete?...49",
+  
+  # Organizational Readiness for Change (ORIC) Healthcare Worker
+  oric_needed_1_hcw = "I believe that our facility needs to implement IPMH for perinatal women....70",
+  oric_needed_2_hcw = "I have observed that my co-workers generally believe that our facility needs to implement IPMH for perinatal women.",
+  oric_motivated_1_hcw = "I am supportive of implementing IPMH for perinatal women....72",
+  oric_motivated_2_hcw = "I have observed that my co-workers are generally supportive of implementing IPMH for perinatal women.",
+  oric_motivated_3_hcw = "Clinic personnel that I work with on mental health programs will likely support the implementation of IPMH for perinatal women.",
+  oric_motivated_hcw_4 = "In my experience, my health facility is given financial and/or non-financial resources by the county (or implementing partners) that would be sufficient for implementing IPMH among perinatal women....75",
+  oric_expectancy_1_hcw = "I believe that implementing IPMH can reduce depression and anxiety among perinatal women at my facility....76",
+  oric_expectancy_2_hcw = "I have observed that my co-workers generally believe that providing IPMH can reduce depression and anxiety among perinatal women at my facility.",
+  oric_demand_1_hcw = "In my experience, clinic in-charges provide good guidance to implement IPMH among perinatal women.",
+  oric_demand_2_hcw = "Clinic staff will need additional training to effectively implement IPMH among perinatal women.",
+  oric_demand_3_hcw = "Additional mental health practitioners are needed at the care clinic to implement IPMH among perinatal women....80",
+  oric_demand_4_hcw = "In my experience, co-workers at the clinic have demonstrated that they can implement IPMH among perinatal women.",
+  oric_resource_1_hcw = "Our facility currently has the non-financial resources and tools needed to implement IPMH among perinatal women....82",
+  oric_resource_2_hcw = "In my experience, there is a platform for doing in-service training for HCW to implement an intervention like IPMH at my facility....83",
+  oric_context_1_hcw = "I have observed that there is a collaborative network of external stakeholders (NGOs or technical/financial partners) that would support the facility to implement IPMH among perinatal women....84",
+  oric_context_2_hcw = "Perinatal women are resistant to receiving mental health interventions like IPMH at your clinic....85",
+  oric_capacity_1_hcw = "In my experience, IPMH can be implemented as intended.",
+  oric_capacity_2_hcw = "Treatment data are often incorrectly recorded during the implementation of IPMH among perinatal women....87",
+  oric_capacity_3_hcw = "In my experience, clinic staff have the skills to effectively implement IPMH among perinatal women....88",
+  oric_flex_1_hcw = "It is challenging to present new ideas to my supervisor.",
+  oric_flex_2_hcw = "My supervisors generally feel comfortable receiving feedback and recommendations on how to improve the delivery of interventions.",
+  oric_flex_3_hcw = "My colleagues generally feel comfortable providing feedback and recommendations on how to improve the delivery of interventions.",
+  oric_flex_4_hcw = "This clinic is flexible. By flexible, we mean the speed in which the clinic can change procedures to meet new conditions and solve problems as they arise.",
+  oric_politic_hcw = "In my experience, Kenya's national policies and guidelines for MCH support delivering mental health interventions for perinatal women and provide sufficient detail for implementation.",
+  oric_complete_hcw = "Complete?...95",
+  
+  # ORIC FIC (Facility administrator)
+  oric_needed_1_fic = "I believe that our facility needs to implement IPMH for perinatal women....95",
+  oric_needed_2_fic = "I have observed that staff at the clinic generally believe that our facility needs to implement IPMH for perinatal women.",
+  oric_motivated_1_fic = "I am supportive of implementing IPMH for perinatal women....97",
+  oric_motivated_2_fic = "I have observed that the staff at the clinic are generally supportive of implementing IPMH for perinatal women.",
+  oric_motivated_3_fic = "Policymakers at county level or MOH would likely support the implementation of IPMH for perinatal women.",
+  oric_motivated_4_fic = "In my experience, my health facility is given financial and/or non-financial resources by the county (or implementing partners) that would be sufficient for implementing IPMH among perinatal women....100",
+  oric_expectancy_1_fic = "I believe that implementing IPMH can reduce depression and anxiety among perinatal women at my facility....103",
+  oric_expectancy_2_fic = "I have observed that my clinic staff generally believe that providing IPMH can reduce depression and anxiety among perinatal women at my facility.",
+  oric_demand_2_fic = "Facility staff will need additional training (beyond the original IPMH training) to effectively implement IPMH among perinatal women.",
+  oric_demand_3_fic = "Additional mental health practitioners are needed at the care clinic to implement IPMH among perinatal women....106",
+  oric_demand_4_fic = "In my experience, clinic staff at my facility have demonstrated that they can implement IPMH among perinatal women.",
+  oric_resource_1_fic = "Our facility currently has the non-financial resources and tools needed to implement IPMH among perinatal women....109",
+  oric_resource_2_fic = "In my experience, there is a platform for doing in-service training for HCW to implement an intervention like IPMH at my facility....111",
+  oric_resource_3_fic = "I am not worried about whether the facility has sufficient future funding for implementing IPMH among perinatal women.",
+  oric_resource_4_fic = "In my experience, my health facility is given financial and/or non-financial resources by the county (or implementing partners) that would be sufficient for implementing IPMH among perinatal women....110",
+  oric_context_1_fic = "I have observed that there is a collaborative network of external stakeholders (NGOs or technical/financial partners) that would support the facility to implement IPMH among perinatal women....112",
+  oric_context_2_fic = "Perinatal women are resistant to receiving mental health interventions like IPMH at your clinic....113",
+  oric_capacity_1_fic = "In my experience, IPMH is currently being implemented as intended.",
+  oric_capacity_2_fic = "Treatment data are often incorrectly recorded during the implementation of IPMH among perinatal women....115",
+  oric_capacity_3_fic = "In my experience, clinic staff have the skills to effectively implement IPMH among perinatal women....116",
+  oric_flex_1_fic = "In my experience, when MCH programs / implementing partners are presented with new ideas, research activities, or pilot projects, they are generally receptive to them.",
+  oric_flex_2_fic = "My subordinates generally feel comfortable providing feedback and recommendations on how to improve the delivery of interventions.",
+  oric_flex_3_fic = "Is this clinic flexible? By flexible, we mean the speed in which the clinic can change procedures to meet new conditions and solve problems as they arise.",
+  oric_leadership_fic = "In my experience, the MCH program leadership (national, county, and implementing partners) is effectively implementing clinic level perinatal mental health programs.",
+  oric_politic_fic = "In my experience, Kenya's national policies and guidelines for MCH support delivering mental health interventions for adolescents and youth with HIV and provide sufficient detail for implementation.",
+  oric_complete_fic = "Complete?...121",
+  
+  # Acceptability/Appropriateness/Feasibility
+  aim_1 = "IPMH meets my approval.",
+  aim_2 = "IPMH is appealing to me.",
+  aim_3 = "I like IPMH.",
+  aim_4 = "I welcome IPMH.",
+  iam_1 = "IPMH seems fitting.",
+  iam_2 = "IPMH seems suitable.",
+  iam_3 = "IPMH seems applicable.",
+  iam_4 = "IPMH seems like a good match.",
+  fim_1 = "IPMH seems implementable.",
+  fim_2 = "IPMH seems possible.",
+  fim_3 = "IPMH seems doable.",
+  fim_4 = "IPMH seems easy to use.",
+  acceptability_appropriateness_and_feasibility_complete = "Complete?...162",
+  
+  # Stigma scale
+  stigma_social_distance_1 = "I am more comfortable helping a person who has a physical illness than I am helping a person who has a mental illness.",
+  stigma_diagnostic = "If a person with a mental illness complains of physical symptoms (e.g. nausea, back pain or headache), I would likely attribute this to their mental illness.",
+  stigma_social_distance_2 = "If a colleague with whom I work told me they had a managed mental illness, I would be as willing to work with him/her.",
+  stigma_disclose_1 = "If I were under treatment for a mental illness I would not disclose this to any of my colleagues",
+  stigma_disclose_2 = "I would be more inclined to seek help for a mental illness if my treating healthcare provider was not associated with my workplace.",
+  stigma_disclose_3 = "I would see myself as weak if I had a mental illness and could not fix it myself.",
+  stigma_disclose_4 = "I would be reluctant to seek help if I had a mental illness.",
+  stigma_recovery_1 = "Employers should hire a person with a managed mental illness if he/she is the best person for the job.",
+  stigma_recovery_2 = "I would still go to a physician if I knew that the physician had been treated for a mental illness.",
+  stigma_disclose_5 = "If I had a mental illness, I would tell my friends.",
+  stigma_responsibility_1 = "It is the responsibility of health care providers to inspire hope in people with mental illness.",
+  stigma_responsibility_2 = "Despite my professional beliefs, I have negative reactions towards people who have mental illness.",
+  stigma_responsibility_3 = "There is little I can do to help people with mental illness.",
+  stigma_recovery_3 = "More than half of people with mental illness don't try hard enough to get better.",
+  stigma_danger = "People with mental illness seldom pose a risk to the public.",
+  stigma_social_distance_3 = "The best treatment for mental illness is medication.",
+  stigma_social_distance_4 = "I would not want a person with a mental illness, even if it were appropriately managed, to work with children.",
+  stigma_responsibility_4 = "Healthcare providers do not need to be advocates for people with mental illness.",
+  stigma_social_distance_5 = "I would not mind if a person with a mental illness lived next door to me.",
+  stigma_responsibility_5 = "I struggle to feel compassion for a person with a mental illness.",
+  stigma_stigma_complete = "Complete?...233"
+)
+
+# Apply renaming
+final_df <- merged_clean %>% rename(any_of(rename_map))
+
+# Check
+colnames(final_df)
+
+```
+
+``` {r, reverse_code_assign_numbers}
+
+library(dplyr)
+library(stringr)
+
+# Assign numbers to ORIC scores
+final_df <- final_df %>%
+  mutate(across(starts_with("oric_"), ~ case_when(
+    . == "1: Completely disagree" | . == "Completely disagree" ~ 1,
+    . == "2: Disagree" | . == "Disagree" ~ 2,
+    . == "3: Neither agree nor disagree" | . == "Neither agree nor disagree" ~ 3,
+    . == "4: Agree" | . == "Agree" ~ 4,
+    . == "5: Completely agree" | . == "Completely agree" ~ 5,
+    . == "Prefer not to answer" ~ NA_real_,
+    TRUE ~ NA_real_
+  )))
+
+
+# Reverse code ORIC-related variables
+final_df <- final_df %>%
+  mutate(across(c("oric_demand_2_hcw", "oric_demand_3_hcw", "oric_context_2_hcw", "oric_capacity_2_hcw", 
+                  "oric_flex_1_hcw", "oric_demand_2_fic", "oric_demand_3_fic", "oric_capacity_2_fic", 
+                  "oric_context_2_fic"),
+                ~6 - .))
+
+
+# Assign stigma scores
+final_df <- final_df %>% 
+  mutate(across(
+    starts_with("stigma_"), 
+    ~ case_when(
+      . == "1: Completely disagree" ~ 1,
+      . == "2: Disagree" ~ 2,
+      . == "3: Neither agree nor disagree" ~ 3,
+      . == "4: Agree" ~ 4,
+      . == "5: Completely agree" ~ 5,
+      TRUE ~ NA_real_  # Handles all other cases safely
+    )
+  ))
+
+ 
+# Reverse code stigma-related variables
+final_df <- final_df %>%
+  mutate(across(
+    any_of(c("stigma_social_distance_2", "stigma_recovery_1", "stigma_recovery_2", 
+             "stigma_disclose_5", "stigma_responsibility_1", "stigma_danger", 
+             "stigma_social_distance_5")),
+    ~ {
+      x <- as.character(.)
+      x[x %in% c("6-", "-6")] <- NA
+      x <- as.numeric(x)
+      6 - x
+    }
+  ))
+
+
+
+# Create ORIC domain scores
+final_df <- final_df %>%
+    mutate(
+        oric_change_commitment = rowMeans(select(., c(starts_with("oric_motivated"),
+                                                      starts_with("oric_needed"),
+                                                      starts_with("oric_expectancy"))),
+                                          na.rm = TRUE),
+        oric_change_efficacy = rowMeans(select(., c(starts_with("oric_demand"),
+                                                    starts_with("oric_resource"),
+                                                    starts_with("oric_context"))),
+                                        na.rm = TRUE),
+        oric_capacity = rowMeans(select(., starts_with("oric_capacity")), na.rm = TRUE),
+        oric_flex = rowMeans(select(., starts_with("oric_flex")), na.rm = TRUE),
+        oric_org = as.numeric(rowMeans(select(., starts_with("oric_politic")), na.rm = TRUE))
+)
+ 
+# Assign numbers to Acceptability, appropriateness, and feasibility
+ final_df <- final_df %>% 
+  mutate(across(
+    matches("^(aim_|iam_|fim_)"),
+    ~ case_when(
+      . == "Completely disagree" ~ 1,
+      . == "Disagree" ~ 2,
+      . == "Neither agree nor disagree" ~ 3,
+      . == "Agree" ~ 4,
+      . == "Completely agree" ~ 5,
+      TRUE ~ NA_real_  # Fallback for unexpected values
+    )
+  ))
+ 
+```
+
+``` {r, data_cleaning}
+# Convert months in job and months in work to years
+final_df$yearsjob <- final_df$monthsjob/ 12
+final_df$yearswork <- final_df$monthswork/ 12
+
+# Remove years in job variable outlier 
+final_df <- final_df %>%
+  mutate(yearsjob = if_else(yearsjob == 1403, NA_real_, yearsjob))
+
+# Changing Cadre Nurse in Charge (Other) to Nurse
+final_df <- final_df %>% 
+  mutate(cadre = if_else(cadre == "Other", "Nurse", cadre))
+
+```
+
+``` {r, creating_categorical_variables}
+
+# Categorize education and age 
+final_df <- final_df %>%
+  mutate(
+    education_category = case_when(
+      education %in% c("Diploma", "Secondary school", "Primary school") ~ "High school diploma or lower schooling",
+      TRUE ~ "Bachelor's degree or higher degree"
+    ),
+    age_category = cut(
+      cal_age,
+      breaks = c(-Inf, 30, 40, Inf),
+      labels = c("<30", "30-40", ">40"),
+      right = TRUE,
+      include.lowest = TRUE
+    )
+  )
+```
+
+``` {r, demographic_tables}
+
+# Years in job (numeric summary)
+summary(final_df$yearsjob)
+
+# Age category (counts, including missing if any)
+summary(final_df$age_category, useNA = "ifany")
+
+# Cadre (counts)
+table(final_df$cadre, useNA = "ifany")
+
+# Education category (counts)
+table(final_df$education_category, useNA = "ifany")
+
+# Sex (counts)
+table(final_df$sex, useNA = "ifany")
+
+# Years working at facility (numeric summary)
+summary(final_df$yearswork)
+
+```
+
+
+``` {r, GEE_analyses_variables}
+
+# Load required packages
+library(geepack)
+library(broom)
+
+# Data preparation
+
+# Facility ID 
+final_df <- final_df %>%
+  mutate(
+    facility_id_equip = as.factor(facility_id_equip),
+
+    # Outcome 
+    equip_total = rowSums(select(., starts_with("equip_") & where(is.numeric)), na.rm = TRUE),
+
+    # Scale variables 
+stigma_mean = rowMeans(select(., starts_with("stigma_") & where(is.numeric)), na.rm = TRUE),
+    oric_mean = rowMeans(select(., starts_with("oric_") & where(is.numeric)), na.rm = TRUE),
+  aim_mean = rowMeans(select(., starts_with("aim_") & where(is.numeric)), na.rm = TRUE),
+  iam_mean = rowMeans(select(., starts_with("iam_") & where(is.numeric)), na.rm = TRUE),
+  fim_mean = rowMeans(select(., starts_with("fim_") & where(is.numeric)), na.rm = TRUE),
+
+  aaf_mean = rowMeans(select(., matches("^(aim_|iam_|fim_)") & where(is.numeric)), na.rm = TRUE),
+
+    # Factor variables 
+    cadre = factor(cadre, levels = c("HTS", "Mentor Mother", "Nurse", "Clinical Officer")),
+    sex = factor(sex, levels = c("Female", "Male")),
+    education_category = factor(education_category, levels = c("High school diploma or lower schooling", "Bachelor's degree or higher degree")),
+    age_category = factor(age_category, levels = c("<30", "30-40", ">40"))
+  )
+
+```
+
+``` {r, GEE_analysis_individual_univariate}
+
+# Load required packages
+library(tidyr)
+library(purrr)
+
+run_gee <- function(var) {
+ # Select outcome + predictor + ID
+  df <- final_df %>%
+    select(equip_total, facility_id_equip, all_of(var)) %>%
+    drop_na()
+
+  # Build formula
+  formula <- as.formula(paste("equip_total ~", var))
+  
+  model <- geeglm(
+    formula,
+    data = df,
+    id = facility_id_equip,
+    family = gaussian, 
+    corstr = "exchangeable"
+  )
+
+  list(
+    model = summary(model),
+    ci = tidy(model, conf.int = TRUE)
+  )
+}
+
+# Univariate individual-level variables GEE 
+vars <- c(
+  "cadre", "age_category", "sex", "education_category", "yearsjob",
+  "yearswork", "stigma_mean", "oric_mean", "aaf_mean", 
+  "aim_mean", "iam_mean", "fim_mean"
+)
+
+gee_results <- lapply(vars, run_gee)
+names(gee_results) <- vars
+
+# View individual-level univariate results 
+gee_results$cadre          # results for cadre
+gee_results$age_category   # results for age_category
+gee_results$sex            # results for sex
+gee_results$education_category  # results for education_category
+gee_results$yearsjob       # results for yearsjob 
+gee_results$yearswork      # results for yearswork
+gee_results$stigma_mean    # results for stigma_mean
+gee_results$oric_mean      # results for sex
+gee_results$aaf_mean       # results for aaf_mean
+gee_results$aim_mean       # results for aim_mean
+gee_results$iam_mean       # results for iam_mean
+gee_results$fim_mean       # results for fim_mean
+
+# Calculate confidence intervals for all individual-level variables 
+get_gee_ci <- function(var, data) {
+  df <- data %>%
+    select(equip_total, facility_id_equip, all_of(var)) %>%
+    drop_na()
+  
+  model <- geeglm(
+    as.formula(paste("equip_total ~", var)),
+    data = df,
+    id = facility_id_equip,
+    family = gaussian,
+    corstr = "exchangeable"
+  )
+  
+  tidy(model, conf.int = TRUE, conf.level = 0.95) %>%
+    mutate(variable = var) %>%
+    select(variable, term, conf.low, conf.high)
+}
+gee_cis_uni_indv <- map_dfr(vars, ~get_gee_ci(.x, final_df))
+
+# View the confidence intervals
+print(gee_cis_uni_indv)
+
+
+```
+
+
+``` {r, gee_analyses_facility_univariate}
+
+# Import and clean facility-level data 
+facility <- read_csv("facility.csv") %>%
+  rename(
+    new_anc_volume = ...5,
+    Level = ...3
+    )
+
+# Merge datasets
+final_df <- final_df %>%
+  mutate(facility_id_equip = str_trim(facility_id_equip)) %>%
+  left_join(facility, by = c("facility_id_equip" = "facility"))
+
+
+# Factor variables 
+fac_vars <- c("Level", "new_anc_volume")
+final_df <- final_df %>%
+  mutate(Level = factor(Level, levels = c("Level 3", "Level 4")))
+
+# Make sure facility_level is a factor and new_anc_volume is numeric
+final_df <- final_df %>%
+  mutate(
+    Level = factor(Level, levels = c("Level 3", "Level 4")),
+    new_anc_volume = as.numeric(new_anc_volume),
+    facility_id_equip = as.factor(facility_id_equip)
+  )
+
+# Define GEE function 
+run_gee_fac <- function(var) {
+  # Select outcome + predictor + ID
+  df <- final_df %>%
+    select(equip_total, facility_id_equip, all_of(var)) %>%
+    drop_na()
+  
+  # Build formula
+  formula <- as.formula(paste("equip_total ~", var))
+  
+  model <- geeglm(
+    formula,
+    data = df,
+    id = facility_id_equip,
+    family = gaussian, 
+    corstr = "exchangeable"
+  )
+  
+  list(
+    model = summary(model),
+    ci = tidy(model, conf.int = TRUE)
+  )
+}
+
+# Facility-level variables
+fac_vars <- c("Level", "new_anc_volume")
+
+# Run GEE for each variable
+gee_fac_results <- lapply(fac_vars, run_gee_fac)
+names(gee_fac_results) <- fac_vars
+
+# View facility-level univariate results
+gee_fac_results$Level
+gee_fac_results$new_anc_volume
+
+# Calculate confidence intervals for all facility-level variables
+get_gee_ci_fac <- function(var, data) {
+  df <- data %>%
+    select(equip_total, facility_id_equip, all_of(var)) %>%
+    drop_na()
+  
+  model <- geeglm(
+    as.formula(paste("equip_total ~", var)),
+    data = df,
+    id = facility_id_equip,
+    family = gaussian,
+    corstr = "exchangeable"
+  )
+  
+  tidy(model, conf.int = TRUE, conf.level = 0.95) %>%
+    mutate(variable = var) %>%
+    select(variable, term, conf.low, conf.high)
+}
+
+gee_cis_fac <- map_dfr(fac_vars, ~get_gee_ci_fac(.x, final_df))
+
+# View confidence intervals
+print(gee_cis_fac)
+```
+
+``` {r, gee_analyses_multivariate}
+# Multivariate GEE (univariate variables with p < 0.1)
+gee_multi_vars <- c("cadre", "education_category", "yearswork")
+multi_formula <- as.formula(
+  paste("equip_total ~", paste(gee_multi_vars, collapse = " + "))
+)
+
+# Fit multivariate GEE
+gee_multi <- geeglm(
+  formula = multi_formula,
+  data = final_df,
+  id = facility_id_equip,   
+  family = gaussian, 
+  corstr = "exchangeable" 
+)
+
+# Multivariate GEE summary
+summary(gee_multi)
+```
+
+``` {r, equip_individual_item_frequency}
+
+# Specify EQUIP items
+equip_cols <- c(
+  "equip_1", "equip_2", "equip_4", "equip_5", "equip_6", "equip_9", "equip_10", "equip_11", "equip_12",
+  "equip_13", "equip_14"
+  )
+
+# Define possible value levels
+value_levels <- 1:4
+
+# Frequency table for each item
+equip_items <- sapply(final_df[equip_cols], function(col) {
+  table(factor(col, levels = value_levels))
+})
+
+print(equip_items)
+
+# Percentage table for each item
+n_total <- nrow(final_df)
+equip_percent <- round((equip_items / n_total) * 100, 1)
+print(equip_percent)
+
+# EQUIP item summaries
+  equip_summary <- data.frame(
+    Item = equip_cols,
+    Median = sapply(final_df[equip_cols], median, na.rm = TRUE),
+    Q1 = sapply(final_df[equip_cols], function(x) quantile(x, 0.25, na.rm = TRUE)),
+    Q3 = sapply(final_df[equip_cols], function(x) quantile(x, 0.75, na.rm = TRUE))
+  )
+
+```
+
+``` {r, descriptive_table_median_IQR}
+
+# Continuous and scale variables 
+cont_vars <- c("equip_total", "aim_mean", "iam_mean", "fim_mean", "oric_mean", "stigma_mean", "yearsjob", "yearswork")
+
+# Continuous variables 
+descriptive_cont <- data.frame(
+  Variable = cont_vars,
+  Median = sapply(final_df[cont_vars], median, na.rm = TRUE),
+  Q1 = sapply(final_df[cont_vars], function(x) quantile(x, 0.25, na.rm = TRUE)),
+  Q3 = sapply(final_df[cont_vars], function(x) quantile(x, 0.75, na.rm = TRUE))
+)
+
+# Categorical variables
+cat_vars <- c("cadre", "sex", "age_category", "education_category", "Level")
+
+descriptive_cat <- lapply(cat_vars, function(var) {
+  tbl <- table(final_df[[var]])
+  pct <- round(prop.table(tbl) * 100, 1)
+  data.frame(
+    Variable = var,
+    Category = names(tbl),
+    N = as.vector(tbl),
+    Percent = pct
+  )
+})
+
+# equip summary
+equip_summary <- c(
+  Median = median(final_df$equip_total, na.rm = TRUE),
+  Q1 = quantile(final_df$equip_total, 0.25, na.rm = TRUE),
+  Q3 = quantile(final_df$equip_total, 0.75, na.rm = TRUE),
+  IQR = IQR(final_df$equip_total, na.rm = TRUE)
+)
+
+equip_summary
+```
+
+``` {r,cadre_by_variable}
+
+# Cadre by education level
+cadre_edu_table <- final_df %>%
+  group_by(cadre, education_category) %>%
+  summarise(N = n(), .groups = "drop") %>%
+  mutate(Percent = round((N / sum(N)) * 100, 1))
+
+# Cadre by years in job (individual-level)
+cadre_yearsjob_table <- table(final_df$cadre, final_df$yearsjob)
+cadre_yearsjob_df <- as.data.frame.matrix(cadre_yearsjob_table)
+cadre_yearsjob_df$Cadre <- rownames(cadre_yearsjob_df)
+rownames(cadre_yearsjob_df) <- NULL
+
+print(cadre_yearsjob_df)
+
+# Cadre by years working at facility 
+cadre_facwork_table <- table(final_df$cadre, final_df$yearswork)
+cadre_facwork_df <- as.data.frame.matrix(cadre_facwork_table)
+cadre_facwork_df$cadre <- rownames(cadre_facwork_df)
+rownames(cadre_facwork_df) <- NULL
+
+print(cadre_facwork_df)
+```
+
+```{r, chi-squared_education_cadre}
+
+# Contingency table for education and cadre
+edu.cadre.table <- table(final_df$education_category, final_df$cadre)
+
+#View table 
+edu.cadre.table
+
+# Pearson's chi squared test 
+chisq <- chisq.test(edu.cadre.table)
+
+# Check assumptions 
+chisq$expected 
+
+# Fisher's exact test (expected < 5)
+if(any(chisq$expected <5)) {
+   fisher.test(edu.cadre.table)
+} else {
+  chisq
+}
+
+
+# Row percentages
+round(prop.table(edu.cadre.table, margin =1), 3)
+
+# Column percentages 
+round(prop.table(edu.cadre.table, margin = 2), 3)
+```
+
