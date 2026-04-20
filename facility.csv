@@ -1,0 +1,22 @@
+facility,,,,,
+Facility ID,Group,Level,"Rural, Urban, Peri-urban",New ANC volume,Field Team Comments
+1,B,Level 4,Rural,65.5,Ok_No room/all rooms are occupied
+2,B,Level 4,Rural,54.5,Ok_Available rooms including old CCC
+3,B,Level 4,Rural,52.75,Ok_All rooms are occpied
+4,B,Level 4,Rural,42.25,"Ok_Available rooms at new admin bloock,at the CCC"
+5,B,Level 4,Rural,41.75,Ok_No readily available rooms_Maybe a tent
+6,B,Level 4,Rural,33.25,"Ok_Very shaky internet, no readily available rooms"
+7,C1,Level 4,Peri-urban,51.5,Ok_May get space at the CCC; MCH congested
+8,C1,Level 4,Peri-urban,51.5,"Ok_MCH congested;construction underway, may get a space"
+9,D2,Level 3,Rural,51,Ok_Avaible space at the CCC and at the MCH/mentor mother room
+10,D2,Level 3,Rural,35.25,"Ok_Congested, No space to pitch a tent, facility I/C has no room"
+11,E1,Level 4,Rural,44.5,"Ok_Getting a room may not be a challenge, not strong internet"
+12,E1,Level 4,Rural,34,"Ok_Could get space at GBV room, MCH incharge office, stable internet"
+13,E2,Level 4,Rural,39,"Ok_ Spacious rooms at MCH, Has three HTS booths_not used regularly"
+14,E2,Level 4,Rural,37.25,Ok_No readily available rooms
+15,F,Level 3,Rural,60.5,"Ok_Available rooms at the KEMRI container, GBV room"
+16,F,Level 3,Rural,49.25,"Ok_Available rooms at the CCC building, maybe share HTS room in MCH"
+17,F,Level 3,Rural,35,Ok_maybe share HTS room in the MCH
+18,F,Level 3,Rural,33.75,"Ok_Congested, could get a room at the new maternity building"
+19,H,Level 3,Urban,52,Ok_No readily available rooms
+20,H,Level 3,Urban,35.25,"Ok_No readily available rooms, Congested, maybe share with CHV neo"
